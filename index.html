@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Simple Map Test</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <style>
+        #map {
+            height: 950px;
+            width: 100%;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+
+        }
+        #floating-panel {
+        position: absolute;
+        top: 10px;
+        left: 25%;
+        z-index: 5;
+        background-color: #fff;
+        padding: 5px;
+        border: 1px solid #999;
+        text-align: center;
+        font-family: 'Roboto','sans-serif';
+        line-height: 30px;
+        padding-left: 10px;
+      }
+    </style>
+    
+</head>
+
+<body>
+    <h3>Simple Map Demo</h3>
+    <div id="floating-panel">
+        <input id="hotelButton" onclick="toggleHotelMarkers(map, hotelMarkers);" type=button value="Hide Hotels">
+        <input id="marketButton" onclick="showMarkers();" type=button value="Hide Supermarkets">
+        <input id="gasstationButton" onclick="deleteMarkers();" type=button value="Hide Gas Stations Markers">
+    </div>
+    <div id="map"></div>
+    <script>
+        var hotelMarkers = [];
+        var shopMarkers = [];
+        var gasstatonMarkers = [];
+        var hotelsShowing = true;
+        var shopsShowing = true;
+        var gasstationsShowing = true;
+        
+        function initMap() {
+
+            //#region Go away!
+            var home = { lat: 55.077326, lng: 11.822575 };
+
+            var infowindow = new google.maps.InfoWindow();
+
+            var map = new google.maps.Map(document.getElementById('map'), {
+                center: new google.maps.LatLng(home),
+                zoom: 12,
+                mapTypeId: 'terrain'
+            });
+
+
+            var homeMarker = new google.maps.Marker({
+                map: map,
+                position: home,
+                icon: { url: 'rc-car.svg', scaledSize: new google.maps.Size(50, 50) },
+                animation: google.maps.Animation.DROP,
+            });
+            google.maps.event.addListener(homeMarker, 'click', function () {
+                infowindow.setContent("<div>CK RC Event Location<br/>Hanebjergvej 1 <br/> 4760 Vordingborg</div>");
+                infowindow.open(map, this);
+            });
+
+
+            var service = new google.maps.places.PlacesService(map);
+
+            service.textSearch({
+                location: map.getCenter(),
+                radius: '500',
+                query: 'supermarked'
+            }, callback);
+
+            function callback(results, status) {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    for (var i = 0; i < results.length; i++) {
+                        createShopMarker(results[i]);
+                    }
+                }
+            }
+
+
+            service.textSearch({
+                location: map.getCenter(),
+                radius: '500',
+                query: 'hotel'
+            }, callback2);
+
+            function callback2(results, status) {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    for (var i = 0; i < results.length; i++) {
+                        createHotelMarker(results[i]);
+                        console.log(results[i]);
+                    }
+                }
+            }
+
+            service.textSearch({
+                location: map.getCenter(),
+                radius: '2000',
+                query: 'gasstation'
+            }, callback3);
+
+            function callback3(results, status) {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    for (var i = 0; i < results.length; i++) {
+                        createGasStationMarker(results[i]);
+                    }
+                }
+            }
+            //#endregion
+
+            function createHotelMarker(place) {
+                var placeLoc = place.geometry.location;
+                var marker = new google.maps.Marker({
+                    map: map,
+                    position: place.geometry.location,
+                    icon: { url: 'slumber.svg', scaledSize: new google.maps.Size(50, 50) },
+                    animation: google.maps.Animation.DROP,
+                });
+                hotelMarkers.push(marker);
+                var photoUrlHotel = place.photos[0].getUrl({ maxWidth: 200, maxHeight: 200 });
+                google.maps.event.addListener(marker, 'click', function () {
+                    $.when(slowPanTo(map, marker.getPosition(), 10, 200)).done(smoothZoom(this.map, 16, this.map.getZoom(), true));
+                    infowindow.setContent("<div style='text-align: center;'>" + place.name + "<br />" + place.formatted_address + "<br/><br/><img src='" + photoUrlHotel + "'/>" + "</div>");
+                    infowindow.open(map, this);
+                });
+                google.maps.event.addListener(infowindow, 'closeclick', function () {
+                    map.panTo(home);
+                    smoothZoom(map, 11, map.getZoom(), false);
+                });
+            }
+
+            function toggleHotelMarkers(map, hotelMarkersArray) {
+                if (hotelsShowing) {
+                    for (var i = 0; i < hotelMarkersArray.length; i++) {
+                        hotelMarkersArray[i].setMap = null;
+                    }
+                    hotelsShowing = false;
+                } else {
+                    for (var i = 0; i < hotelMarkersArray.length; i++) {
+                        hotelMarkersArray[i].setMap(map);
+                    }
+                    hotelsShowing = true;
+                }
+            }
+
+            //#region Create Shop Markers Function
+
+            function createShopMarker(place) {
+                var placeLoc = place.geometry.location;
+                var marker = new google.maps.Marker({
+                    map: map,
+                    position: place.geometry.location,
+                    icon: { url: 'shopping-cart.svg', scaledSize: new google.maps.Size(50, 50) },
+                    animation: google.maps.Animation.DROP,
+                });
+                shopMarkers.push(marker);
+                google.maps.event.addListener(marker, 'click', function () {
+                    $.when(slowPanTo(map, marker.getPosition(), 10, 200)).done(smoothZoom(this.map, 16, this.map.getZoom(), true));
+                    infowindow.setContent("<div style='text-align: center;'>" + place.name + "<br />" + place.formatted_address + "<br/><br/><img src='" + place.photos[0].getUrl({ maxWidth: 200, maxHeight: 200 }) + "'>" + "</div>");
+                    infowindow.open(map, this);
+                });
+                google.maps.event.addListener(infowindow, 'closeclick', function () {
+                    $.when(map.panTo(home)).done(smoothZoom(map, 12, map.getZoom(), false));
+                });
+            }
+            //#endregion
+
+            //#region Create Gas Station Markers Function
+            function createGasStationMarker(place) {
+                var placeLoc = place.geometry.location;
+                var marker = new google.maps.Marker({
+                    map: map,
+                    position: place.geometry.location,
+                    icon: { url: 'gas-station.svg', scaledSize: new google.maps.Size(50, 50) },
+                    animation: google.maps.Animation.DROP,
+                });
+                gasstatonMarkers.push(marker);
+                google.maps.event.addListener(marker, 'click', function () {
+                    $.when(slowPanTo(map, marker.getPosition(), 10, 200)).done(smoothZoom(this.map, 16, this.map.getZoom(), true));
+                    infowindow.setContent("<div style='text-align: center;'>" + place.name + "<br />" + place.formatted_address + "<br/><br/><img src='" + place.photos[0].getUrl({ maxWidth: 200, maxHeight: 200 }) + "'>" + "</div>");
+                    infowindow.open(map, this);
+                });
+                google.maps.event.addListener(infowindow, 'closeclick', function () {
+                    $.when(map.panTo(home)).done(smoothZoom(map, 12, map.getZoom(), false));
+                });
+            }
+        }
+        //#endregion
+        async function smoothZoom(map, level, cnt, mode) {
+            if (mode == true) {
+
+                if (cnt >= level) {
+                    return;
+                }
+                else {
+                    var z = google.maps.event.addListener(map, 'zoom_changed', function (event) {
+                        google.maps.event.removeListener(z);
+                        smoothZoom(map, level, cnt + 1, true);
+                    });
+                    setTimeout(function () { map.setZoom(cnt) }, 80);
+                }
+            } else {
+                if (cnt <= level) {
+                    return;
+                }
+                else {
+                    var z = google.maps.event.addListener(map, 'zoom_changed', function (event) {
+                        google.maps.event.removeListener(z);
+                        smoothZoom(map, level, cnt - 1, false);
+                    });
+                    setTimeout(function () { map.setZoom(cnt) }, 80);
+                }
+            }
+        }
+
+
+        var slowPanTo = function (map, endPosition, n_intervals, T_msec) {
+            var f_timeout, getStep, i, j, lat_array, lat_delta, lat_step, lng_array, lng_delta, lng_step, pan, ref, startPosition;
+            getStep = function (delta) {
+                return parseFloat(delta) / n_intervals;
+            };
+            startPosition = map.getCenter();
+            lat_delta = endPosition.lat() - startPosition.lat();
+            lng_delta = endPosition.lng() - startPosition.lng();
+            lat_step = getStep(lat_delta);
+            lng_step = getStep(lng_delta);
+            lat_array = [];
+            lng_array = [];
+            for (i = j = 1, ref = n_intervals; j <= ref; i = j += +1) {
+                lat_array.push(map.getCenter().lat() + i * lat_step);
+                lng_array.push(map.getCenter().lng() + i * lng_step);
+            }
+            f_timeout = function (i, i_min, i_max) {
+                return parseFloat(T_msec) / n_intervals;
+            };
+            pan = function (i) {
+                if (i < lat_array.length) {
+                    return setTimeout(function () {
+                        map.panTo(new google.maps.LatLng({
+                            lat: lat_array[i],
+                            lng: lng_array[i]
+                        }));
+                        return pan(i + 1);
+                    }, f_timeout(i, 0, lat_array.length - 1));
+                }
+            };
+            return pan(0);
+        };
+
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.js"></script>
+    <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCytAmZwbPJuLx3mCsStL7hRjB4XBX8-YM&callback=initMap&libraries=places"
+        async defer></script>
+
+    <div>Icons made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/"
+            title="Flaticon">www.flaticon.com</a> is licensed by
+        <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a>
+    </div>
+    <div>Icons made by <a href="https://www.flaticon.com/authors/google" title="Google">Google</a> from <a href="https://www.flaticon.com/"
+            title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/"
+            title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
+</body>
+
+</html>
+
+<!-- AIzaSyCytAmZwbPJuLx3mCsStL7hRjB4XBX8-YM -->
